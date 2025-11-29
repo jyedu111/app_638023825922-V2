@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>黑名单管理</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background: #f5f5f5; }
+    .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    h2 { text-align: center; color: #1976d2; }
+    form { display: flex; gap: 10px; margin: 20px 0; }
+    input, button { padding: 8px 12px; font-size: 16px; }
+    button.add { background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    button.del { background: #f44336; color: white; border: none; border-radius: 4px; padding: 4px 8px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+    th { background: #e3f2fd; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>🌐 黑名单管理</h2>
+    <p>添加域名（如 <code>qq.com</code>），支持通配：<code>*.qq.com</code> 会自动匹配子域</p>
+    
+    <form id="addForm">
+      <input type="text" id="domain" placeholder="域名（如：qq.com）" required>
+      <input type="text" id="reason" placeholder="原因（可选）">
+      <button type="submit" class="add">➕ 添加</button>
+    </form>
+
+    <table id="list">
+      <thead>
+        <tr><th>ID</th><th>域名</th><th>原因</th><th>添加时间</th><th>操作</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script>
+    const tbody = document.querySelector('#list tbody');
+
+    // 加载黑名单
+    function loadList() {
+      fetch('/api/blacklist')
+        .then(r => r.json())
+        .then(data => {
+          tbody.innerHTML = '';
+          data.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${item.id}</td>
+              <td><strong>${item.domain}</strong></td>
+              <td>${item.reason || '—'}</td>
+              <td>${new Date(item.created_at).toLocaleString('zh-CN')}</td>
+              <td><button class="del" onclick="del(${item.id})">🗑️ 删除</button></td>
+            `;
+            tbody.appendChild(tr);
+          });
+        });
+    }
+
+    document.getElementById('addForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const domain = document.getElementById('domain').value.trim();
+      const reason = document.getElementById('reason').value.trim();
+      
+      const res = await fetch('/api/blacklist/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain, reason })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        alert('✅ 添加成功！');
+        document.getElementById('addForm').reset();
+        loadList();
+      } else {
+        alert('❌ 失败：' + (data.error || '未知错误'));
+      }
+    };
+
+    window.del = async (id) => {
+      if (!confirm('确定删除？')) return;
+      await fetch(`/api/blacklist/${id}`, { method: 'DELETE' });
+      loadList();
+    };
+
+    loadList();
+  </script>
+</body>
+</html>

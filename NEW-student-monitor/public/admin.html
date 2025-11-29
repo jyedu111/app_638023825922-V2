@@ -1,0 +1,65 @@
+<!-- public/admin.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>黑名单管理</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    input, button { padding: 8px; margin: 5px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { padding: 8px; text-align: left; border: 1px solid #ddd; }
+  </style>
+</head>
+<body>
+  <h2>🌐 黑名单管理</h2>
+  <form onsubmit="addBlacklist(); return false;">
+    <input type="text" id="domain" placeholder="域名（如：qq.com）" required>
+    <button type="submit">➕ 添加</button>
+  </form>
+
+  <table id="list">
+    <thead><tr><th>域名</th><th>操作</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    function loadList() {
+      fetch('/api/blacklist')
+        .then(r => r.json())
+        .then(domains => {
+          const tbody = document.querySelector('#list tbody');
+          tbody.innerHTML = '';
+          domains.forEach(domain => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${domain}</td>
+              <td><button onclick="remove('${domain}')">🗑️ 删除</button></td>
+            `;
+            tbody.appendChild(tr);
+          });
+        });
+    }
+
+    function addBlacklist() {
+      const domain = document.getElementById('domain').value.trim();
+      fetch('/api/blacklist/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain })
+      }).then(() => {
+        alert('✅ 添加成功！');
+        document.getElementById('domain').value = '';
+        loadList();
+      });
+    }
+
+    function remove(domain) {
+      if (!confirm(`确定删除 ${domain}？`)) return;
+      fetch(`/api/blacklist/${encodeURIComponent(domain)}`, { method: 'DELETE' })
+        .then(() => loadList());
+    }
+
+    loadList();
+  </script>
+</body>
+</html>

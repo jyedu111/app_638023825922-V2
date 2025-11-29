@@ -1,0 +1,133 @@
+// server.js —— 完整无错版（支持黑名单 + 实际URL + 10秒上报）
+const express = require('express');
+const sqlite3 = require('sqlite3').verbose();
+const cors = require('cors');
+const bodyParser = require('body-parser');
+
+const app = express();
+const PORT = 3000;
+
+// 中间件
+app.use(cors());
+app.use(bodyParser.json());
+app.use(express.static('public'));
+
+// 数据库连接
+const db = new sqlite3.Database('./data.db', (err) => {
+  if (err) {
+    console.error('❌ DB 连接失败:', err.message);
+  } else {
+    console.log('✅ SQLite 连接成功');
+  }
+});
+
+// 初始化表结构
+db.serialize(() => {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS browsing_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      student_id TEXT NOT NULL,
+      url TEXT NOT NULL,
+      title TEXT,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+  db.run(`
+    CREATE TABLE IF NOT EXISTS blacklist (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      domain TEXT NOT NULL UNIQUE
+    )`);
+});
+
+// ====== API 接口 ======
+
+// 获取黑名单列表
+app.get('/api/blacklist', (req, res) => {
+  db.all('SELECT domain FROM blacklist ORDER BY domain', (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(rows.map(r => r.domain));
+  });
+});
+
+// 添加黑名单
+app.post('/api/blacklist/add', (req, res) => {
+  const { domain } = req.body;
+  if (!domain) {
+    return res.status(400).json({ error: '需提供 domain' });
+  }
+  db.run('INSERT OR IGNORE INTO blacklist (domain) VALUES (?)', 
+    [domain.trim().toLowerCase()], 
+    function(err) {
+      if (err) {
+        return res.status(500).json({ error: '插入失败' });
+      }
+      res.json({ ok: true, id: this.lastID });
+    }
+  );
+});
+
+// 删除黑名单
+app.delete('/api/blacklist/:domain', (req, res) => {
+  db.run('DELETE FROM blacklist WHERE domain = ?', [req.params.domain], (err) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json({ ok: true });
+  });
+});
+
+// 接收学生端上报
+app.post('/api/report', (req, res) => {
+  const { student_id, url, title } = req.body;
+  if (!student_id || !url) {
+    return res.status(400).json({ error: '缺少 student_id 或 url' });
+  }
+
+  let domain;
+  try {
+    domain = new URL(url).hostname.replace('www.', '').toLowerCase();
+  } catch (e) {
+    domain = 'invalid-url';
+  }
+
+  // 检查是否在黑名单
+  db.get('SELECT 1 FROM blacklist WHERE ? LIKE "%" || domain || "%"', [domain], (err, row) => {
+    const blacklisted = !!row;
+
+    // 插入记录
+    db.run(
+      `INSERT INTO browsing_records (student_id, url, title) VALUES (?, ?, ?)`,
+      [student_id, url, title || ''],
+      (err) => {
+        if (err) {
+          return res.status(500).json({ error: '写入失败' });
+        }
+        res.json({ ok: true, blacklisted });
+      }
+    );
+  });
+});
+
+// 获取最新记录（供前端轮询）
+app.get('/api/latest', (req, res) => {
+  const limit = 100;
+  db.all(`
+    SELECT r.*, 
+      CASE WHEN b.id IS NOT NULL THEN 1 ELSE 0 END AS blacklisted
+    FROM browsing_records r
+    LEFT JOIN blacklist b ON r.url LIKE '%' || b.domain || '%'
+    ORDER BY r.timestamp DESC
+    LIMIT ?
+  `, [limit], (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(rows);
+  });
+});
+
+// 启动服务
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ 服务端运行中 → http://10.1.82.202:${PORT}`);
+});

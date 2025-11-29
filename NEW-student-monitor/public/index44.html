@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>机房行为监控</title>
+  <style>
+    body { font-family: sans-serif; padding: 15px; background: #f0f8ff; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+    th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #ccc; }
+    tr.blacklisted { background: #ffebee; }
+    .time { color: #666; font-size: 0.9em; }
+    .bad { color: #d32f2f; font-weight: bold; }
+    .good { color: #388e3c; font-weight: bold; }
+    #status { font-size: 0.9em; color: #666; margin-top: 5px; }
+  </style>
+</head>
+<body>
+  <h1>🏫 机房行为监控（自动刷新：7秒）</h1>
+  <div id="status">正在加载...</div>
+  
+  <table>
+    <thead>
+      <tr>
+        <th>时间</th>
+        <th>学生ID</th>
+        <th>网址</th>
+        <th>标题</th>
+        <th>状态</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+
+  <script>
+    const tbody = document.getElementById('tbody');
+    const status = document.getElementById('status');
+
+    function truncateUrl(url) {
+      return url.length > 60 ? url.substring(0, 57) + '...' : url;
+    }
+
+    function loadLatest() {
+      status.textContent = `🔄 刷新中...（${new Date().toLocaleTimeString()}）`;
+      fetch('/api/latest?limit=30')
+        .then(r => r.json())
+        .then(rows => {
+          tbody.innerHTML = '';
+          rows.forEach(row => {
+            const time = new Date(row.timestamp).toLocaleString('zh-CN');
+            const tr = document.createElement('tr');
+            if (row.blacklisted) tr.className = 'blacklisted';
+            
+            tr.innerHTML = `
+              <td class="time">${time}</td>
+              <td>${row.student_id}</td>
+              <td><a href="${row.url}" target="_blank" title="${row.url}">${truncateUrl(row.url)}</a></td>
+              <td>${row.title || '—'}</td>
+              <td>${row.blacklisted ? '<span class="bad">⚠️ 黑名单</span>' : '<span class="good">✅ 正常</span>'}</td>
+            `;
+            tbody.appendChild(tr);
+          });
+          status.textContent = `✅ 最后更新：${new Date().toLocaleTimeString()}`;
+        })
+        .catch(e => status.textContent = `❌ 加载失败：${e.message}`);
+    }
+
+    // 首次加载
+    loadLatest();
+    // 每 7 秒刷新
+    setInterval(loadLatest, 7000);
+  </script>
+</body>
+</html>

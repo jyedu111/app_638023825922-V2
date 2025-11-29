@@ -1,0 +1,3 @@
+curl -X POST "http://10.1.82.202:3000/api/report" ^
+More?   -H "Content-Type: application/json" ^
+More?   -d "{\"student_id\":\"test\",\"url\":\"https://baidu.com\",\"title\":\"测试\"}"

@@ -1,0 +1,32 @@
+﻿# Ignore node dependencies
+node_modules/
+
+# Python virtual env
+venv/
+.env/
+
+# Database files
+*.db
+*.sqlite
+data.db
+datass.db.bak
+
+# Logs and temp
+*.log
+server_heartbeat.log
+
+# Editor / OS
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# DB Browser dir
+DB.Browser.for.SQLite-v3.13.1-win64/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# VSCode
+.vscode/

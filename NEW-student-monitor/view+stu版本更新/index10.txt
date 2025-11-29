@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🏫 机房上网行为实时监控（含学生端IP）</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Microsoft YaHei', 'Arial', sans-serif;
+      background: #f5f9ff;
+      padding: 15px;
+      color: #333;
+      min-width: 1000px;  /* 避免表格挤压 */
+    }
+    header {
+      text-align: center;
+      margin-bottom: 15px;
+      padding: 12px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #1976d2;
+      margin-bottom: 8px;
+      font-size: 1.5em;
+    }
+    .subtitle {
+      font-size: 0.9em;
+      color: #666;
+      line-height: 1.5;
+    }
+    .status-bar {
+      text-align: center;
+      margin: 10px 0;
+      font-size: 0.9em;
+      color: #555;
+      padding: 8px;
+      background: white;
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      margin: 10px 0;
+    }
+    th, td {
+      padding: 12px 15px;
+      text-align: left;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    th {
+      background: #e3f2fd;
+      font-weight: bold;
+      color: #0d47a1;
+      font-size: 0.95em;
+    }
+    tr:last-child td { border-bottom: none; }
+    /* 黑名单记录高亮（红色背景） */
+    tr.blacklisted { background-color: #ffebee !important; }
+    /* 交替行背景（提升可读性） */
+    tr:not(.blacklisted):nth-child(even) { background-color: #fafafa; }
+    /* 单元格样式优化 */
+    .time-cell { 
+      color: #666; 
+      font-size: 0.9em;
+      width: 180px;  /* 固定宽度，避免时间挤压 */
+    }
+    .student-id-cell { 
+      width: 120px; 
+      font-weight: 500;
+    }
+    .student-ip-cell { 
+      font-family: 'Courier New', monospace; 
+      color: #2e7d32;  /* 学生端IP绿色标识 */
+      width: 150px;
+    }
+    .url-cell {
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .target-ip-cell {
+      font-family: 'Courier New', monospace;
+      color: #d32f2f;  /* 网页IP红色标识 */
+      width: 150px;
+    }
+    .title-cell {
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #555;
+    }
+    .status-cell { width: 120px; }
+    /* 网址链接样式 */
+    .url-link {
+      color: #1976d2;
+      text-decoration: none;
+      word-break: break-all;
+    }
+    .url-link:hover { 
+      text-decoration: underline;
+      color: #0d47a1;
+    }
+    /* 状态标签样式 */
+    .bad { 
+      color: #d32f2f; 
+      font-weight: bold;
+      background: #ffebee;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.85em;
+    }
+    .good { 
+      color: #388e3c; 
+      font-weight: bold;
+      background: #e8f5e9;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.85em;
+    }
+    /* 按钮样式 */
+    .btn-group {
+      text-align: center;
+      margin: 15px 0;
+    }
+    .btn {
+      background: #1976d2;
+      color: white;
+      border: none;
+      padding: 9px 18px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 0 8px;
+      font-size: 0.9em;
+      transition: opacity 0.3s;
+    }
+    .btn:hover { 
+      opacity: 0.9;
+      background: #0d47a1;
+    }
+    .btn-admin {
+      background: #9c27b0;
+    }
+    .btn-admin:hover {
+      background: #7b1fa2;
+    }
+    /* 空数据提示样式 */
+    .empty-tip {
+      text-align: center;
+      padding: 30px;
+      color: #666;
+      font-size: 1em;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>机房上网行为实时监控系统</h1>
+    <p class="subtitle">
+      服务端地址：http://10.1.82.202:3000 | 自动刷新：7秒/次 | 
+      显示字段：时间、学生ID、学生端IP、浏览网址、网页IP、网页标题、状态
+    </p>
+  </header>
+
+  <!-- 状态提示栏 -->
+  <div class="status-bar" id="status">✅ 初始化完成，正在加载数据...</div>
+
+  <!-- 功能按钮组 -->
+  <div class="btn-group">
+    <button class="btn" onclick="loadLatest()">🔄 手动刷新记录</button>
+    <button class="btn btn-admin" onclick="location.href='/admin.html'">⚙️ 黑名单管理</button>
+  </div>
+
+  <!-- 监控记录表 -->
+  <table>
+    <thead>
+      <tr>
+        <th>记录时间</th>
+        <th>学生ID</th>
+        <th>学生端IP</th>  <!-- 新增：学生端IP列 -->
+        <th>浏览网址</th>
+        <th>网页IP</th>
+        <th>网页标题</th>
+        <th>状态</th>
+      </tr>
+    </thead>
+    <tbody id="record-table"></tbody>
+  </table>
+
+  <script>
+    // 全局元素
+    const tbody = document.getElementById('record-table');
+    const statusEl = document.getElementById('status');
+
+    // 工具函数：截断过长文本（避免单元格溢出）
+    function truncate(str, maxLen) {
+      if (!str || str === '—') return '—';
+      return str.length > maxLen ? str.substring(0, maxLen - 3) + '...' : str;
+    }
+
+    // 核心函数：加载最新浏览记录
+    function loadLatest() {
+      const now = new Date().toLocaleTimeString('zh-CN');
+      statusEl.textContent = `🔄 正在刷新记录...（最后更新：${now}）`;
+
+      // 调用服务端API获取数据
+      fetch('/api/latest?limit=50')  // 每次加载50条最新记录
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP错误：${response.status}（${response.statusText}）`);
+          }
+          return response.json();
+        })
+        .then(records => {
+          // 清空表格
+          tbody.innerHTML = '';
+
+          // 处理空数据
+          if (records.length === 0) {
+            tbody.innerHTML = `
+              <tr>
+                <td colspan="7" class="empty-tip">暂无浏览记录（请确认学生端已启动并上报数据）</td>
+              </tr>
+            `;
+            statusEl.textContent = `✅ 无记录（最后检查：${now}）`;
+            return;
+          }
+
+          // 渲染记录（逐条添加到表格）
+          records.forEach(record => {
+            const tr = document.createElement('tr');
+            // 黑名单记录添加高亮类
+            if (record.blacklisted) tr.className = 'blacklisted';
+
+            // 构建表格行内容（新增学生端IP列）
+            tr.innerHTML = `
+              <td class="time-cell">${record.timestamp}</td>
+              <td class="student-id-cell">${record.student_id || '未知ID'}</td>
+              <td class="student-ip-cell">${record.student_ip}</td>  <!-- 学生端IP -->
+              <td class="url-cell">
+                ${record.url === 'about:blank' 
+                  ? '<span>—（空白页/非目标浏览器）</span>' 
+                  : `<a href="${record.url}" target="_blank" class="url-link" title="点击访问：${record.url}">${truncate(record.url, 50)}</a>`}
+              </td>
+              <td class="target-ip-cell">${record.target_ip}</td>  <!-- 网页IP -->
+              <td class="title-cell" title="${record.title}">${truncate(record.title, 30)}</td>
+              <td class="status-cell">
+                ${record.blacklisted ? '<span class="bad">⚠️ 黑名单</span>' : '<span class="good">✅ 正常</span>'}
+              </td>
+            `;
+
+            tbody.appendChild(tr);
+          });
+
+          // 更新状态
+          statusEl.textContent = `✅ 加载成功 | 共 ${records.length} 条记录 | 最后更新：${now}`;
+        })
+        .catch(error => {
+          // 处理加载错误
+          console.error('加载记录失败:', error);
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="7" class="empty-tip">❌ 加载失败：${error.message}（请检查服务端是否正常运行）</td>
+            </tr>
+          `;
+          statusEl.innerHTML = `
+            ❌ 刷新失败（${now}） 
+            <button onclick="loadLatest()" style="margin-left:10px; padding:3px 8px; font-size:0.8em;">重试</button>
+          `;
+        });
+    }
+
+    // 页面加载时执行一次，之后定时刷新（7秒）
+    window.addEventListener('load', () => {
+      loadLatest();
+      setInterval(loadLatest, 7000);  // 7秒自动刷新
+    });
+  </script>
+</body>
+</html>

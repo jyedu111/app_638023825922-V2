@@ -1,0 +1,4 @@
+requests
+Pillow
+psutil
+pywin32

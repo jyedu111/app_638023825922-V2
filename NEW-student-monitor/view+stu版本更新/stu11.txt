@@ -1,0 +1,163 @@
+# student_agent.py —— 修复浏览器识别+正确提取Chrome/Edge/Firefox网址
+import time
+import json
+import requests
+import os
+import socket
+import re
+from urllib.parse import urlparse
+import win32gui
+import win32process
+import psutil
+
+# ====== 配置 ======
+SERVER_URL = "http://10.1.82.202:3000/api/report"
+REPORT_INTERVAL = 10  # 上报间隔（秒）
+STUDENT_ID = socket.gethostname().lower() or f"pc_{int(time.time()) % 1000}"
+
+# ====== 1. 获取学生端IP ======
+def get_student_ip():
+    try:
+        for addr_info in socket.getaddrinfo(socket.gethostname(), None):
+            ip = addr_info[4][0]
+            if ip.startswith(('10.', '192.168.', '172.')) and '.' in ip:
+                return ip
+        resp = requests.get("https://api.ipify.org?format=text", timeout=3)
+        return resp.text.strip()
+    except Exception:
+        return "未知IP"
+
+# ====== 2. 获取网页IP（基于正确网址）======
+def get_target_ip(url):
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        if hostname:
+            return socket.gethostbyname(hostname)
+    except Exception:
+        pass
+    return "未知IP"
+
+# ====== 3. 浏览器网址提取工具（分Chrome/Edge/Firefox）======
+def get_chrome_url(hwnd):
+    """提取Chrome当前标签页网址（通过地址栏控件）"""
+    address_bar_class = 'Chrome_AutocompleteEditView'
+    handles = []
+    def enum_child(handle, extra):
+        if win32gui.GetClassName(handle) == address_bar_class:
+            extra.append(handle)
+        win32gui.EnumChildWindows(handle, enum_child, extra)
+        return True
+    win32gui.EnumChildWindows(hwnd, enum_child, handles)
+    return win32gui.GetWindowText(handles[0]).strip() if handles else None
+
+def get_edge_url(hwnd):
+    """提取Edge当前标签页网址（通过地址栏控件）"""
+    # 先找Edge子窗口
+    edge_windows = []
+    def find_edge_win(handle, extra):
+        if win32gui.GetClassName(handle) == 'MicrosoftEdgeWindowClass':
+            extra.append(handle)
+        win32gui.EnumChildWindows(handle, find_edge_win, extra)
+        return True
+    win32gui.EnumChildWindows(hwnd, find_edge_win, edge_windows)
+    if not edge_windows:
+        return None
+    # 再找地址栏
+    addr_bars = []
+    def find_addr_bar(handle, extra):
+        if win32gui.GetClassName(handle) == 'RichEditBox':
+            extra.append(handle)
+        win32gui.EnumChildWindows(handle, find_addr_bar, extra)
+        return True
+    win32gui.EnumChildWindows(edge_windows[0], find_addr_bar, addr_bars)
+    return win32gui.GetWindowText(addr_bars[0]).strip() if addr_bars else None
+
+def get_firefox_url(hwnd):
+    """提取Firefox当前标签页网址（通过地址栏控件）"""
+    addr_bars = []
+    def enum_child(handle, extra):
+        text = win32gui.GetWindowText(handle).strip()
+        if win32gui.GetClassName(handle) == 'Edit' and text.startswith(('http://', 'https://')):
+            extra.append(handle)
+        win32gui.EnumChildWindows(handle, enum_child, extra)
+        return True
+    win32gui.EnumChildWindows(hwnd, enum_child, addr_bars)
+    return win32gui.GetWindowText(addr_bars[0]).strip() if addr_bars else None
+
+# ====== 4. 正确识别浏览器+提取网址/标题 ======
+def get_active_browser_info():
+    hwnd = win32gui.GetForegroundWindow()
+    if not hwnd:
+        return "about:blank", "无激活窗口"
+    
+    window_title = win32gui.GetWindowText(hwnd)
+    if not window_title:
+        return "about:blank", "无窗口标题"
+    
+    # 准确判断浏览器进程（修复Edge/Chrome识别）
+    _, pid = win32process.GetWindowThreadProcessId(hwnd)
+    try:
+        proc = psutil.Process(pid)
+        exe_basename = os.path.basename(proc.exe()).lower()
+        # 目标浏览器进程名（Windows实际进程名）
+        valid_browsers = {
+            'chrome.exe': ('chrome', 'Google Chrome'),
+            'microsoftedge.exe': ('edge', 'Microsoft Edge'),
+            'firefox.exe': ('firefox', 'Mozilla Firefox')
+        }
+        if exe_basename not in valid_browsers:
+            return "about:blank", f"非目标浏览器（{exe_basename}）"
+        browser_type, browser_name = valid_browsers[exe_basename]
+    except Exception as e:
+        return "about:blank", f"进程异常：{str(e)[:50]}"
+    
+    # 提取当前网址（对应浏览器类型）
+    url = None
+    if browser_type == 'chrome':
+        url = get_chrome_url(hwnd)
+    elif browser_type == 'edge':
+        url = get_edge_url(hwnd)
+    elif browser_type == 'firefox':
+        url = get_firefox_url(hwnd)
+    
+    # 提取网页标题（移除浏览器名）
+    if url:
+        title = window_title.replace(f' - {browser_name}', '').strip() or "无标题"
+        return url, title
+    else:
+        return "about:blank", f"无法获取{browser_name}网址"
+
+# ====== 5. 上报逻辑 ======
+def report_once():
+    url, title = get_active_browser_info()
+    student_ip = get_student_ip()
+    target_ip = get_target_ip(url)
+    
+    if not url.startswith(('http://', 'https://')) and url != "about:blank":
+        print(f"[{time.strftime('%H:%M:%S')}] 跳过非HTTP数据：{url}")
+        return
+    
+    payload = {
+        "student_id": STUDENT_ID,
+        "student_ip": student_ip,
+        "url": url[:512],
+        "title": title[:256],
+        "target_ip": target_ip
+    }
+    
+    try:
+        resp = requests.post(SERVER_URL, json=payload, timeout=5)
+        resp_data = resp.json()
+        status = "🔴黑名单" if resp_data.get('blacklisted') else "🟢正常"
+        print(f"[{time.strftime('%H:%M:%S')}] {STUDENT_ID} | 学生IP:{student_ip} | {status} | 网址:{url[:50]} | 网页IP:{target_ip}")
+    except Exception as e:
+        print(f"[{time.strftime('%H:%M:%S')}] ❌ 上报失败：{str(e)} | 学生IP:{student_ip} | 网址:{url[:50]}")
+
+# ====== 主循环 ======
+if __name__ == '__main__':
+    print(f"🧑 学生端启动成功 | 学生ID: {STUDENT_ID} | 支持：Chrome/Edge/Firefox")
+    print("="*80)
+    while True:
+        report_once()
+        time.sleep(REPORT_INTERVAL)

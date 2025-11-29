@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🏫 学生上网行为监控系统</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      color: #333;
+      min-height: 100vh;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    
+    header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 25px;
+      text-align: center;
+    }
+    
+    h1 {
+      font-size: 2.2em;
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+    
+    .header-subtitle {
+      font-size: 1.1em;
+      opacity: 0.9;
+    }
+    
+    .nav-tabs {
+      display: flex;
+      background: #f8f9fa;
+      border-bottom: 2px solid #e9ecef;
+    }
+    
+    .nav-tab {
+      padding: 15px 25px;
+      cursor: pointer;
+      border: none;
+      background: none;
+      font-size: 1em;
+      color: #666;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      border-bottom: 3px solid transparent;
+    }
+    
+    .nav-tab:hover {
+      background: #e9ecef;
+      color: #495057;
+    }
+    
+    .nav-tab.active {
+      color: #667eea;
+      border-bottom-color: #667eea;
+      background: white;
+    }
+    
+    .tab-content {
+      padding: 20px;
+      min-height: 500px;
+    }
+    
+    .tab-pane {
+      display: none;
+    }
+    
+    .tab-pane.active {
+      display: block;
+    }
+    
+    .status-bar {
+      background: #f8f9fa;
+      padding: 12px 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 0.95em;
+      border-left: 4px solid #28a745;
+    }
+    
+    .filter-panel {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      align-items: center;
+    }
+    
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    label {
+      font-weight: 500;
+      color: #495057;
+      font-size: 0.95em;
+    }
+    
+    input[type="text"], input[type="datetime-local"], select {
+      padding: 8px 12px;
+      border: 1px solid #ced4da;
+      border-radius: 4px;
+      font-size: 0.95em;
+      transition: border-color 0.3s;
+    }
+    
+    input[type="text"]:focus, input[type="datetime-local"]:focus, select:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+    }
+    
+    .btn {
+      padding: 9px 18px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.95em;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .btn-primary {
+      background: #667eea;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #5a5fd8;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+    
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+    
+    .btn-secondary:hover {
+      background: #5a6268;
+    }
+    
+    .btn-success {
+      background: #28a745;
+      color: white;
+    }
+    
+    .btn-success:hover {
+      background: #218838;
+    }
+    
+    .btn-danger {
+      background: #dc3545;
+      color: white;
+    }
+    
+    .btn-danger:hover {
+      background: #c82333;
+    }
+    
+    .btn-group {
+      display: flex;
+      gap: 10px;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+    
+    thead {
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    
+    th, td {
+      padding: 14px 18px;
+      text-align: left;
+      border-bottom: 1px solid #e9ecef;
+    }
+    
+    th {
+      font-weight: 600;
+      font-size: 0.95em;
+      letter-spacing: 0.5px;
+    }
+    
+    tr:last-child td {
+      border-bottom: none;
+    }
+    
+    tr:nth-child(even) {
+      background: #f8f9fa;
+    }
+    
+    tr.blacklisted {
+      background: #f8d7da !important;
+    }
+    
+    tr:hover:not(.blacklisted) {
+      background: #e9ecef;
+    }
+    
+    .time-cell {
+      font-family: 'Courier New', monospace;
+      color: #666;
+      width: 180px;
+      font-size: 0.9em;
+    }
+    
+    .student-id-cell {
+      font-weight: 500;
+      width: 120px;
+    }
+    
+    .student-ip-cell {
+      font-family: 'Courier New', monospace;
+      color: #28a745;
+      width: 140px;
+      font-size: 0.9em;
+    }
+    
+    .domain-cell {
+      max-width: 250px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    
+    .title-cell {
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #555;
+    }
+    
+    .status-cell {
+      width: 120px;
+    }
+    
+    .url-link {
+      color: #667eea;
+      text-decoration: none;
+      transition: color 0.3s;
+    }
+    
+    .url-link:hover {
+      color: #5a5fd8;
+      text-decoration: underline;
+    }
+    
+    .status-badge {
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.85em;
+      font-weight: 600;
+      text-align: center;
+    }
+    
+    .status-badge.normal {
+      background: #d4edda;
+      color: #155724;
+    }
+    
+    .status-badge.blacklisted {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #6c757d;
+    }
+    
+    .empty-state i {
+      font-size: 4em;
+      margin-bottom: 20px;
+      opacity: 0.5;
+    }
+    
+    .pagination {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-top: 20px;
+      gap: 5px;
+    }
+    
+    .page-btn {
+      padding: 6px 12px;
+      border: 1px solid #dee2e6;
+      background: white;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+    
+    .page-btn:hover:not(:disabled) {
+      background: #e9ecef;
+      border-color: #adb5bd;
+    }
+    
+    .page-btn.active {
+      background: #667eea;
+      color: white;
+      border-color: #667eea;
+    }
+    
+    .page-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .stats-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    
+    .stat-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 25px;
+      border-radius: 12px;
+      text-align: center;
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
+    }
+    
+    .stat-number {
+      font-size: 2.5em;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    
+    .stat-label {
+      font-size: 1.1em;
+      opacity: 0.9;
+    }
+    
+    .blacklist-form {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    
+    .blacklist-form .form-group {
+      margin-bottom: 15px;
+    }
+    
+    .blacklist-form label {
+      display: block;
+      margin-bottom: 5px;
+    }
+    
+    .blacklist-form input[type="text"] {
+      width: 100%;
+      max-width: 400px;
+    }
+    
+    .blacklist-table th:first-child,
+    .blacklist-table td:first-child {
+      width: 200px;
+    }
+    
+    .reason-cell {
+      color: #666;
+      font-style: italic;
+    }
+    
+    @media (max-width: 768px) {
+      .container {
+        margin: 10px;
+      }
+      
+      .filter-panel {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      
+      .filter-group {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      
+      table {
+        font-size: 0.9em;
+      }
+      
+      th, td {
+        padding: 10px 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🏫 学生上网行为监控系统</h1>
+      <p class="header-subtitle">实时监控学生机上网行为，支持数据导出和黑名单管理</p>
+    </header>
+    
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="switchTab('dashboard')">📊 数据监控</button>
+      <button class="nav-tab" onclick="switchTab('blacklist')">🚫 黑名单管理</button>
+      <button class="nav-tab" onclick="switchTab('ip-blacklist')">🔒 IP黑名单</button>
+      <button class="nav-tab" onclick="switchTab('export')">📥 数据导出</button>
+    </div>
+    
+    <!-- 数据监控标签页 -->
+    <div id="dashboard" class="tab-pane active">
+      <div class="stats-cards">
+        <div class="stat-card">
+          <div class="stat-number" id="total-students">0</div>
+          <div class="stat-label">在线学生</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="total-records">0</div>
+          <div class="stat-label">浏览记录</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="blocked-count">0</div>
+          <div class="stat-label">违规访问</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="unique-domains">0</div>
+          <div class="stat-label">访问域名</div>
+        </div>
+      </div>
+      
+      <div class="filter-panel">
+        <div class="filter-group">
+          <label for="student-id">学生ID:</label>
+          <input type="text" id="student-id" placeholder="输入学生ID">
+        </div>
+        <div class="filter-group">
+          <label for="domain">域名:</label>
+          <input type="text" id="domain" placeholder="输入域名">
+        </div>
+        <div class="filter-group">
+          <label for="status">状态:</label>
+          <select id="status">
+            <option value="">全部</option>
+            <option value="normal">正常</option>
+            <option value="blacklisted">黑名单</option>
+          </select>
+        </div>
+        <div class="btn-group" style="margin-left: auto;">
+          <button class="btn btn-primary" onclick="applyFilters()">
+            🔍 筛选
+          </button>
+          <button class="btn btn-secondary" onclick="resetFilters()">
+            🔄 重置
+          </button>
+          <button class="btn btn-success" onclick="loadLatestRecords()">
+            ↻ 刷新
+          </button>
+        </div>
+      </div>
+      
+      <div class="status-bar" id="status-bar">
+        🔄 正在加载数据...
+      </div>
+      
+      <table>
+        <thead>
+          <tr>
+            <th>记录时间</th>
+            <th>学生ID</th>
+            <th>学生IP</th>
+            <th>访问域名</th>
+            <th>网页标题</th>
+            <th>状态</th>
+          </tr>
+        </thead>
+        <tbody id="records-table"></tbody>
+      </table>
+      
+      <div class="pagination" id="pagination">
+        <!-- 分页按钮将在这里动态生成 -->
+      </div>
+    </div>
+    
+    <!-- 域名黑名单标签页 -->
+    <div id="blacklist" class="tab-pane">
+      <div class="blacklist-form">
+        <h3>🚫 添加域名到黑名单</h3>
+        <div class="form-group">
+          <label for="blacklist-domain">域名:</label>
+          <input type="text" id="blacklist-domain" placeholder="例如: qq.com">
+        </div>
+        <div class="form-group">
+          <label for="blacklist-reason">原因:</label>
+          <input type="text" id="blacklist-reason" placeholder="例如: 娱乐网站">
+        </div>
+        <button class="btn btn-danger" onclick="addDomainToBlacklist()">
+          ➕ 添加到黑名单
+        </button>
+      </div>
+      
+      <table class="blacklist-table">
+        <thead>
+          <tr>
+            <th>域名</th>
+            <th>原因</th>
+            <th>添加时间</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="domain-blacklist-table"></tbody>
+      </table>
+    </div>
+    
+    <!-- IP黑名单标签页 -->
+    <div id="ip-blacklist" class="tab-pane">
+      <div class="blacklist-form">
+        <h3>🔒 添加IP到黑名单</h3>
+        <div class="form-group">
+          <label for="blacklist-ip">IP地址:</label>
+          <input type="text" id="blacklist-ip" placeholder="例如: 192.168.1.100">
+        </div>
+        <div class="form-group">
+          <label for="blacklist-ip-reason">原因:</label>
+          <input type="text" id="blacklist-ip-reason" placeholder="例如: 异常访问">
+        </div>
+        <button class="btn btn-danger" onclick="addIpToBlacklist()">
+          ➕ 添加到黑名单
+        </button>
+      </div>
+      
+      <table class="blacklist-table">
+        <thead>
+          <tr>
+            <th>IP地址</th>
+            <th>原因</th>
+            <th>添加时间</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="ip-blacklist-table"></tbody>
+      </table>
+    </div>
+    
+    <!-- 数据导出标签页 -->
+    <div id="export" class="tab-pane">
+      <div class="filter-panel">
+        <h3>📥 导出数据设置</h3>
+        
+        <div class="form-group" style="margin: 20px 0;">
+          <label for="export-student-id">按学生ID筛选:</label>
+          <input type="text" id="export-student-id" placeholder="留空表示全部">
+        </div>
+        
+        <div class="form-group" style="margin: 20px 0;">
+          <label for="export-domain">按域名筛选:</label>
+          <input type="text" id="export-domain" placeholder="留空表示全部">
+        </div>
+        
+        <div class="form-group" style="margin: 20px 0;">
+          <label for="export-status">按状态筛选:</label>
+          <select id="export-status">
+            <option value="">全部</option>
+            <option value="normal">正常</option>
+            <option value="blacklisted">黑名单</option>
+          </select>
+        </div>
+        
+        <div class="form-group" style="margin: 20px 0;">
+          <label>时间范围:</label>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <input type="datetime-local" id="export-start-time">
+            <span>至</span>
+            <input type="datetime-local" id="export-end-time">
+          </div>
+        </div>
+        
+        <div class="btn-group">
+          <button class="btn btn-success" onclick="exportToExcel()">
+            📥 导出Excel
+          </button>
+          <button class="btn btn-danger" onclick="if(confirm('确定要清空所有浏览记录吗？此操作不可恢复！')) clearAllRecords()">
+            🗑️ 清空记录
+          </button>
+        </div>
+      </div>
+      
+      <div style="text-align: center; padding: 40px; color: #6c757d;">
+        <p>📌 提示：导出的Excel文件将包含所有符合筛选条件的浏览记录，</p>
+        <p>包括学生ID、IP地址、访问域名、网页标题、状态和时间戳等信息。</p>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    // 全局变量
+    let currentPage = 1;
+    const pageSize = 20;
+    let totalPages = 1;
+    
+    // 初始化页面
+    window.addEventListener('load', () => {
+      // 默认显示数据监控页面
+      loadDashboard();
+      
+      // 设置默认时间范围（过去24小时）
+      const now = new Date();
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      
+      document.getElementById('export-start-time').value = yesterday.toISOString().slice(0, 16);
+      document.getElementById('export-end-time').value = now.toISOString().slice(0, 16);
+    });
+    
+    // 切换标签页
+    function switchTab(tabId) {
+      // 隐藏所有标签页
+      document.querySelectorAll('.tab-pane').forEach(pane => {
+        pane.classList.remove('active');
+      });
+      
+      // 移除所有标签的活动状态
+      document.querySelectorAll('.nav-tab').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      
+      // 显示选中的标签页
+      document.getElementById(tabId).classList.add('active');
+      
+      // 激活选中的标签
+      event.target.classList.add('active');
+      
+      // 根据标签页加载不同内容
+      if (tabId === 'dashboard') {
+        loadDashboard();
+      } else if (tabId === 'blacklist') {
+        loadDomainBlacklist();
+      } else if (tabId === 'ip-blacklist') {
+        loadIpBlacklist();
+      }
+    }
+    
+    // 加载数据监控页面
+    function loadDashboard() {
+      loadStatistics();
+      loadLatestRecords();
+    }
+    
+    // 加载统计数据
+    function loadStatistics() {
+      fetch('/api/stats')
+        .then(response => response.json())
+        .then(data => {
+          document.getElementById('total-students').textContent = data.totalStudents || 0;
+          document.getElementById('total-records').textContent = data.totalRecords || 0;
+          document.getElementById('blocked-count').textContent = data.blockedCount || 0;
+          document.getElementById('unique-domains').textContent = data.uniqueDomains || 0;
+        })
+        .catch(error => {
+          console.error('加载统计数据失败:', error);
+        });
+    }
+    
+    // 加载最新记录
+    function loadLatestRecords() {
+      currentPage = 1;
+      applyFilters();
+    }
+    
+    // 应用筛选条件
+    function applyFilters() {
+      const studentId = document.getElementById('student-id').value.trim();
+      const domain = document.getElementById('domain').value.trim();
+      const status = document.getElementById('status').value;
+      
+      const params = new URLSearchParams({
+        page: currentPage,
+        pageSize: pageSize,
+        studentId: studentId,
+        domain: domain,
+        status: status
+      });
+      
+      document.getElementById('status-bar').textContent = '🔄 正在加载数据...';
+      
+      fetch(`/api/records?${params.toString()}`)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('网络请求失败');
+          }
+          return response.json();
+        })
+        .then(data => {
+          const tbody = document.getElementById('records-table');
+          tbody.innerHTML = '';
+          
+          if (data.records.length === 0) {
+            tbody.innerHTML = `
+              <tr>
+                <td colspan="6" class="empty-state">
+                  <div>📭 暂无数据</div>
+                  <div>符合条件的记录为空</div>
+                </td>
+              </tr>
+            `;
+            document.getElementById('status-bar').textContent = '✅ 无符合条件的记录';
+            document.getElementById('pagination').innerHTML = '';
+            return;
+          }
+          
+          // 提取纯计算机名的函数
+          function extractComputerName(studentId) {
+            if (!studentId) return '未知ID';
+            
+            // 检查是否是旧格式（stu_计算机名_时间戳）
+            if (studentId.startsWith('stu_') && studentId.includes('_')) {
+              const parts = studentId.split('_');
+              // 提取中间部分作为计算机名
+              if (parts.length >= 3) {
+                return parts[1];
+              }
+            }
+            
+            // 对于新格式或其他格式，直接返回
+            return studentId;
+          }
+      
+      // 更新记录表格
+          data.records.forEach(record => {
+            const tr = document.createElement('tr');
+            if (record.blacklisted) {
+              tr.className = 'blacklisted';
+            }
+            
+            tr.innerHTML = `
+              <td class="time-cell">${formatDateTime(record.timestamp)}</td>
+              <td class="student-id-cell">${extractComputerName(record.student_id) || '未知ID'}</td>
+              <td class="student-ip-cell">${record.student_ip || '未知IP'}</td>
+              <td class="domain-cell">
+                ${record.url === 'about:blank' || record.url === '空白页/非目标浏览器' 
+                  ? '<span>—（空白页）</span>' 
+                  : `<a href="${record.original_url || `https://${record.url}`}" target="_blank" class="url-link" title="访问：${record.original_url || record.url}">${truncateDomain(record.url, 30)}</a>`}
+              </td>
+              <td class="title-cell" title="${record.title}">${truncate(record.title, 35)}</td>
+              <td class="status-cell">
+                <span class="status-badge ${record.blacklisted ? 'blacklisted' : 'normal'}">
+                  ${record.blacklisted ? '🚫 黑名单' : '✅ 正常'}
+                </span>
+              </td>
+            `;
+            
+            tbody.appendChild(tr);
+          });
+          
+          // 更新分页信息
+          totalPages = Math.ceil(data.total / pageSize);
+          updatePagination();
+          
+          const now = new Date().toLocaleTimeString('zh-CN');
+          document.getElementById('status-bar').textContent = `✅ 加载成功 | 共 ${data.total} 条记录 | 最后更新：${now}`;
+        })
+        .catch(error => {
+          console.error('加载记录失败:', error);
+          const tbody = document.getElementById('records-table');
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="6" class="empty-state">
+                <div>❌ 加载失败</div>
+                <div>${error.message}</div>
+                <button class="btn btn-secondary" style="margin-top: 10px;" onclick="applyFilters()">重试</button>
+              </td>
+            </tr>
+          `;
+          document.getElementById('status-bar').textContent = '❌ 加载失败，请检查服务端是否正常运行';
+        });
+    }
+    
+    // 更新分页控件
+    function updatePagination() {
+      const pagination = document.getElementById('pagination');
+      pagination.innerHTML = '';
+      
+      if (totalPages <= 1) {
+        return;
+      }
+      
+      // 上一页按钮
+      const prevBtn = document.createElement('button');
+      prevBtn.className = 'page-btn';
+      prevBtn.textContent = '上一页';
+      prevBtn.disabled = currentPage === 1;
+      prevBtn.onclick = () => {
+        if (currentPage > 1) {
+          currentPage--;
+          applyFilters();
+        }
+      };
+      pagination.appendChild(prevBtn);
+      
+      // 页码按钮
+      const startPage = Math.max(1, currentPage - 2);
+      const endPage = Math.min(totalPages, startPage + 4);
+      
+      if (startPage > 1) {
+        addPageButton(1);
+        if (startPage > 2) {
+          addEllipsis();
+        }
+      }
+      
+      for (let i = startPage; i <= endPage; i++) {
+        addPageButton(i);
+      }
+      
+      if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+          addEllipsis();
+        }
+        addPageButton(totalPages);
+      }
+      
+      // 下一页按钮
+      const nextBtn = document.createElement('button');
+      nextBtn.className = 'page-btn';
+      nextBtn.textContent = '下一页';
+      nextBtn.disabled = currentPage === totalPages;
+      nextBtn.onclick = () => {
+        if (currentPage < totalPages) {
+          currentPage++;
+          applyFilters();
+        }
+      };
+      pagination.appendChild(nextBtn);
+    }
+    
+    // 添加页码按钮
+    function addPageButton(pageNum) {
+      const pagination = document.getElementById('pagination');
+      const btn = document.createElement('button');
+      btn.className = `page-btn ${pageNum === currentPage ? 'active' : ''}`;
+      btn.textContent = pageNum;
+      btn.onclick = () => {
+        currentPage = pageNum;
+        applyFilters();
+      };
+      pagination.appendChild(btn);
+    }
+    
+    // 添加省略号
+    function addEllipsis() {
+      const pagination = document.getElementById('pagination');
+      const ellipsis = document.createElement('span');
+      ellipsis.textContent = '...';
+      ellipsis.style.padding = '0 10px';
+      pagination.appendChild(ellipsis);
+    }
+    
+    // 重置筛选条件
+    function resetFilters() {
+      document.getElementById('student-id').value = '';
+      document.getElementById('domain').value = '';
+      document.getElementById('status').value = '';
+      currentPage = 1;
+      applyFilters();
+    }
+    
+    // 加载域名黑名单
+    function loadDomainBlacklist() {
+      fetch('/api/blacklist/domain')
+        .then(response => response.json())
+        .then(domains => {
+          const tbody = document.getElementById('domain-blacklist-table');
+          tbody.innerHTML = '';
+          
+          if (domains.length === 0) {
+            tbody.innerHTML = `
+              <tr>
+                <td colspan="4" class="empty-state">
+                  <div>📭 暂无域名黑名单记录</div>
+                </td>
+              </tr>
+            `;
+            return;
+          }
+          
+          domains.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${item.domain}</td>
+              <td class="reason-cell">${item.reason || '无'}</td>
+              <td>${formatDateTime(item.created_at)}</td>
+              <td>
+                <button class="btn btn-danger" style="padding: 5px 10px; font-size: 0.8em;" onclick="removeDomainFromBlacklist('${item.domain}')">
+                  🗑️ 删除
+                </button>
+              </td>
+            `;
+            tbody.appendChild(tr);
+          });
+        })
+        .catch(error => {
+          console.error('加载域名黑名单失败:', error);
+        });
+    }
+    
+    // 添加域名到黑名单
+    function addDomainToBlacklist() {
+      const domain = document.getElementById('blacklist-domain').value.trim();
+      const reason = document.getElementById('blacklist-reason').value.trim();
+      
+      if (!domain) {
+        alert('请输入域名！');
+        return;
+      }
+      
+      fetch('/api/blacklist/domain/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain, reason })
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('添加失败');
+          }
+          return response.json();
+        })
+        .then(() => {
+          alert('✅ 添加成功！');
+          document.getElementById('blacklist-domain').value = '';
+          document.getElementById('blacklist-reason').value = '';
+          loadDomainBlacklist();
+        })
+        .catch(error => {
+          alert(`❌ 添加失败: ${error.message}`);
+        });
+    }
+    
+    // 从黑名单删除域名
+    function removeDomainFromBlacklist(domain) {
+      if (!confirm(`确定要从黑名单中删除域名「${domain}」吗？`)) {
+        return;
+      }
+      
+      fetch(`/api/blacklist/domain/${encodeURIComponent(domain)}`, {
+        method: 'DELETE'
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('删除失败');
+          }
+          loadDomainBlacklist();
+        })
+        .catch(error => {
+          alert(`❌ 删除失败: ${error.message}`);
+        });
+    }
+    
+    // 加载IP黑名单
+    function loadIpBlacklist() {
+      fetch('/api/blacklist/ip')
+        .then(response => response.json())
+        .then(ips => {
+          const tbody = document.getElementById('ip-blacklist-table');
+          tbody.innerHTML = '';
+          
+          if (ips.length === 0) {
+            tbody.innerHTML = `
+              <tr>
+                <td colspan="4" class="empty-state">
+                  <div>📭 暂无IP黑名单记录</div>
+                </td>
+              </tr>
+            `;
+            return;
+          }
+          
+          ips.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${item.ip}</td>
+              <td class="reason-cell">${item.reason || '无'}</td>
+              <td>${formatDateTime(item.created_at)}</td>
+              <td>
+                <button class="btn btn-danger" style="padding: 5px 10px; font-size: 0.8em;" onclick="removeIpFromBlacklist('${item.ip}')">
+                  🗑️ 删除
+                </button>
+              </td>
+            `;
+            tbody.appendChild(tr);
+          });
+        })
+        .catch(error => {
+          console.error('加载IP黑名单失败:', error);
+        });
+    }
+    
+    // 添加IP到黑名单
+    function addIpToBlacklist() {
+      const ip = document.getElementById('blacklist-ip').value.trim();
+      const reason = document.getElementById('blacklist-ip-reason').value.trim();
+      
+      if (!ip) {
+        alert('请输入IP地址！');
+        return;
+      }
+      
+      // 简单的IP地址格式验证
+      const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+      if (!ipRegex.test(ip)) {
+        alert('请输入有效的IP地址！');
+        return;
+      }
+      
+      fetch('/api/blacklist/ip/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip, reason })
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('添加失败');
+          }
+          return response.json();
+        })
+        .then(() => {
+          alert('✅ 添加成功！');
+          document.getElementById('blacklist-ip').value = '';
+          document.getElementById('blacklist-ip-reason').value = '';
+          loadIpBlacklist();
+        })
+        .catch(error => {
+          alert(`❌ 添加失败: ${error.message}`);
+        });
+    }
+    
+    // 从黑名单删除IP
+    function removeIpFromBlacklist(ip) {
+      if (!confirm(`确定要从黑名单中删除IP「${ip}」吗？`)) {
+        return;
+      }
+      
+      fetch(`/api/blacklist/ip/${encodeURIComponent(ip)}`, {
+        method: 'DELETE'
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('删除失败');
+          }
+          loadIpBlacklist();
+        })
+        .catch(error => {
+          alert(`❌ 删除失败: ${error.message}`);
+        });
+    }
+    
+    // 导出Excel
+    function exportToExcel() {
+      const studentId = document.getElementById('export-student-id').value.trim();
+      const domain = document.getElementById('export-domain').value.trim();
+      const status = document.getElementById('export-status').value;
+      const startTime = document.getElementById('export-start-time').value;
+      const endTime = document.getElementById('export-end-time').value;
+      
+      const params = new URLSearchParams({
+        studentId: studentId,
+        domain: domain,
+        status: status,
+        startTime: startTime,
+        endTime: endTime
+      });
+      
+      // 创建下载链接
+      const downloadUrl = `/api/export/excel?${params.toString()}`;
+      
+      // 显示加载状态
+      const statusBar = document.createElement('div');
+      statusBar.style.position = 'fixed';
+      statusBar.style.bottom = '20px';
+      statusBar.style.right = '20px';
+      statusBar.style.background = '#667eea';
+      statusBar.style.color = 'white';
+      statusBar.style.padding = '10px 20px';
+      statusBar.style.borderRadius = '6px';
+      statusBar.style.zIndex = '9999';
+      statusBar.textContent = '🔄 正在生成Excel文件，请稍候...';
+      document.body.appendChild(statusBar);
+      
+      // 设置下载链接
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      
+      // 延迟点击以显示提示
+      setTimeout(() => {
+        a.click();
+        
+        // 2秒后移除状态提示
+        setTimeout(() => {
+          document.body.removeChild(statusBar);
+        }, 2000);
+      }, 500);
+      
+      // 清理
+      setTimeout(() => {
+        document.body.removeChild(a);
+      }, 1000);
+    }
+    
+    // 清空所有记录
+    function clearAllRecords() {
+      fetch('/api/records/clear', {
+        method: 'DELETE'
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('清空失败');
+          }
+          alert('✅ 所有记录已清空！');
+          // 刷新数据
+          if (document.getElementById('dashboard').classList.contains('active')) {
+            loadDashboard();
+          }
+        })
+        .catch(error => {
+          alert(`❌ 清空失败: ${error.message}`);
+        });
+    }
+    
+    // 工具函数：格式化日期时间
+    function formatDateTime(timestamp) {
+      if (!timestamp) return '';
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) return timestamp;
+      return date.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+    }
+    
+    // 工具函数：截断文本
+    function truncate(str, maxLength) {
+      if (!str || str === '—') return '—';
+      if (str.length <= maxLength) return str;
+      return str.substring(0, maxLength - 3) + '...';
+    }
+    
+    // 工具函数：智能截断域名，保留核心部分
+    function truncateDomain(domain, maxLength) {
+      if (!domain || domain.length <= maxLength) return domain;
+      
+      // 对于非常长的域名，智能截取保留核心部分
+      const parts = domain.split('.');
+      if (parts.length >= 3) {
+        // 对于多级域名，保留最后两部分完整显示
+        const tld = parts.slice(-2).join('.');
+        const remainingLength = maxLength - tld.length - 3; // 3 for '...'
+        
+        if (remainingLength > 0) {
+          // 截取前面部分
+          const prefix = domain.substring(0, remainingLength);
+          return prefix + '...' + tld;
+        } else {
+          // 如果最后两部分已经很长，直接截断
+          return truncate(domain, maxLength);
+        }
+      } else {
+        // 简单域名直接截断
+        return truncate(domain, maxLength);
+      }
+    }
+  </script>
+</body>
+</html>

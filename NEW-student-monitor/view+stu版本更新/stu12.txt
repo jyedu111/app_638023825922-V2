@@ -1,0 +1,194 @@
+# student_agent.py —— 上报域名+同一域名去重+浏览器识别修复
+import time
+import json
+import requests
+import os
+import socket
+import re
+from urllib.parse import urlparse
+import win32gui
+import win32process
+import psutil
+
+# ====== 配置项 ======
+SERVER_URL = "http://10.1.82.202:3000/api/report"
+REPORT_INTERVAL = 10  # 基础上报间隔（秒）
+DUPLICATE_INTERVAL = 30  # 同一域名重复上报的间隔（秒，建议≥30）
+STUDENT_ID = socket.gethostname().lower() or f"pc_{int(time.time()) % 1000}"
+
+# 存储最近上报的域名（key=域名，value=最后上报时间戳）
+recent_domains = {}
+
+
+# ====== 1. 获取学生端IP ======
+def get_student_ip():
+    try:
+        for addr_info in socket.getaddrinfo(socket.gethostname(), None):
+            ip = addr_info[4][0]
+            if ip.startswith(('10.', '192.168.', '172.')) and '.' in ip:
+                return ip
+        resp = requests.get("https://api.ipify.org?format=text", timeout=3)
+        return resp.text.strip()
+    except Exception:
+        return "未知IP"
+
+
+# ====== 2. 从URL提取域名（去掉前缀/路径）======
+def get_domain_from_url(url):
+    """将完整URL转换为域名（如https://www.baidu.com/index → baidu.com）"""
+    if url in ["about:blank", "—"]:
+        return "空白页/非目标浏览器"
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        if not hostname:
+            return "无效网址"
+        
+        # 去掉www/m等前缀，保留主域名
+        prefixes = ["www", "m", "mobile", "wap", "web"]
+        parts = hostname.split('.')
+        if len(parts) >= 2 and parts[0] in prefixes:
+            domain = '.'.join(parts[1:])
+        else:
+            domain = hostname
+        return domain.lower()  # 统一小写，避免大小写重复
+    except Exception:
+        return "无法解析域名"
+
+
+# ====== 3. 根据域名解析网页IP ======
+def get_target_ip(domain):
+    if domain in ["空白页/非目标浏览器", "无效网址", "无法解析域名"]:
+        return "未知IP"
+    try:
+        return socket.gethostbyname(domain)
+    except Exception:
+        return "未知IP"
+
+
+# ====== 4. 正确提取Chrome/Edge/Firefox的网址 ======
+def get_chrome_url(hwnd):
+    """提取Chrome地址栏网址"""
+    addr_class = 'Chrome_AutocompleteEditView'
+    handles = []
+    def enum_child(handle, extra):
+        if win32gui.GetClassName(handle) == addr_class:
+            extra.append(handle)
+        win32gui.EnumChildWindows(handle, enum_child, extra)
+    win32gui.EnumChildWindows(hwnd, enum_child, handles)
+    return win32gui.GetWindowText(handles[0]).strip() if handles else None
+
+def get_edge_url(hwnd):
+    """提取Edge地址栏网址"""
+    edge_wins = []
+    def find_edge(handle, extra):
+        if win32gui.GetClassName(handle) == 'MicrosoftEdgeWindowClass':
+            extra.append(handle)
+        win32gui.EnumChildWindows(handle, find_edge, extra)
+    win32gui.EnumChildWindows(hwnd, find_edge, edge_wins)
+    if not edge_wins:
+        return None
+    
+    addr_bars = []
+    def find_addr(handle, extra):
+        if win32gui.GetClassName(handle) == 'RichEditBox':
+            extra.append(handle)
+        win32gui.EnumChildWindows(handle, find_addr, extra)
+    win32gui.EnumChildWindows(edge_wins[0], find_addr, addr_bars)
+    return win32gui.GetWindowText(addr_bars[0]).strip() if addr_bars else None
+
+def get_firefox_url(hwnd):
+    """提取Firefox地址栏网址"""
+    addr_bars = []
+    def enum_child(handle, extra):
+        text = win32gui.GetWindowText(handle).strip()
+        if win32gui.GetClassName(handle) == 'Edit' and text.startswith(('http://', 'https://')):
+            extra.append(handle)
+        win32gui.EnumChildWindows(handle, enum_child, extra)
+    win32gui.EnumChildWindows(hwnd, enum_child, addr_bars)
+    return win32gui.GetWindowText(addr_bars[0]).strip() if addr_bars else None
+
+
+# ====== 5. 识别浏览器并获取网址/标题 ======
+def get_active_browser_info():
+    hwnd = win32gui.GetForegroundWindow()
+    if not hwnd:
+        return "about:blank", "无激活窗口"
+    
+    window_title = win32gui.GetWindowText(hwnd)
+    if not window_title:
+        return "about:blank", "无窗口标题"
+    
+    # 准确识别浏览器进程
+    _, pid = win32process.GetWindowThreadProcessId(hwnd)
+    try:
+        proc = psutil.Process(pid)
+        exe = os.path.basename(proc.exe()).lower()
+        valid_browsers = {
+            'chrome.exe': ('chrome', get_chrome_url),
+            'microsoftedge.exe': ('edge', get_edge_url),
+            'firefox.exe': ('firefox', get_firefox_url)
+        }
+        if exe not in valid_browsers:
+            return "about:blank", f"非目标浏览器（{exe}）"
+        _, get_url_func = valid_browsers[exe]
+    except Exception as e:
+        return "about:blank", f"进程异常：{str(e)[:50]}"
+    
+    # 提取当前网址
+    url = get_url_func(hwnd)
+    if url:
+        title = window_title.replace(f' - {proc.name().split(".")[0].capitalize()}', '').strip()
+        return url, title
+    else:
+        return "about:blank", "无法获取网址"
+
+
+# ====== 6. 上报逻辑（含域名去重）======
+def report_once():
+    current_time = time.time()
+    # 1. 获取浏览器数据
+    raw_url, title = get_active_browser_info()
+    # 2. 转换为域名
+    domain = get_domain_from_url(raw_url)
+    # 3. 同一域名去重（间隔不足则跳过）
+    if domain in recent_domains:
+        if current_time - recent_domains[domain] < DUPLICATE_INTERVAL:
+            print(f"[{time.strftime('%H:%M:%S')}] 跳过重复域名：{domain}（间隔不足{DUPLICATE_INTERVAL}秒）")
+            return
+    # 4. 更新最近上报记录（并清理1小时前的旧记录）
+    recent_domains[domain] = current_time
+    to_remove = [d for d, t in recent_domains.items() if current_time - t > 3600]
+    for d in to_remove:
+        del recent_domains[d]
+    
+    # 5. 其他数据
+    student_ip = get_student_ip()
+    target_ip = get_target_ip(domain)
+    
+    # 6. 构造上报数据（url字段存域名）
+    payload = {
+        "student_id": STUDENT_ID,
+        "student_ip": student_ip,
+        "url": domain,  # 原URL字段改为存储域名
+        "title": title,
+        "target_ip": target_ip
+    }
+    
+    # 7. 发送上报
+    try:
+        resp = requests.post(SERVER_URL, json=payload, timeout=5)
+        resp_data = resp.json()
+        status = "🔴黑名单" if resp_data.get('blacklisted') else "🟢正常"
+        print(f"[{time.strftime('%H:%M:%S')}] {STUDENT_ID} | 学生IP:{student_ip} | {status} | 域名:{domain} | 网页IP:{target_ip}")
+    except Exception as e:
+        print(f"[{time.strftime('%H:%M:%S')}] ❌ 上报失败：{str(e)} | 域名:{domain}")
+
+
+# ====== 主循环 ======
+if __name__ == '__main__':
+    print(f"🧑 学生端启动成功 | 学生ID: {STUDENT_ID} | 规则：上报域名+{DUPLICATE_INTERVAL}秒去重")
+    print("="*80)
+    while True:
+        report_once()
+        time.sleep(REPORT_INTERVAL)

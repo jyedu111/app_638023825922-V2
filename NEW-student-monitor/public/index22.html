@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>机房行为监控 - 实时</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f8ff; padding: 15px; }
+    header { text-align: center; margin-bottom: 15px; }
+    .actions { text-align: center; margin: 10px 0; }
+    .btn { background: #1976d2; color: white; border: none; padding: 8px 16px; 
+           border-radius: 4px; cursor: pointer; margin: 0 5px; }
+    .btn:hover { opacity: 0.9; }
+    table { width: 100%; border-collapse: collapse; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e0e0e0; }
+    th { background: #e3f2fd; }
+    tr.blacklisted { background-color: #ffebee !important; }
+    .screenshot { width: 120px; height: 80px; object-fit: cover; border: 1px solid #ddd; }
+    .url { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .time { font-size: 0.9em; color: #666; }
+    .bad { color: #d32f2f; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🏫 机房上网行为实时监控</h1>
+    <p><strong>服务地址：</strong>http://10.1.82.202:3000</p>
+  </header>
+
+  <div class="actions">
+    <button class="btn" onclick="location.reload()">🔄 刷新</button>
+    <button class="btn" style="background:#388e3c" onclick="exportXLS()">📥 导出 XLS</button>
+    <button class="btn" style="background:#9c27b0" onclick="location.href='/admin.html'">⚙️ 黑名单管理</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>时间</th>
+        <th>学生ID</th>
+        <th>截图</th>
+        <th>网址</th>
+        <th>标题</th>
+        <th>状态</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+
+  <script>
+    const tbody = document.getElementById('tbody');
+
+    // 加载历史数据
+    fetch('/api/latest?limit=30')
+      .then(r => r.json())
+      .then(data => data.forEach(renderRow));
+
+    // SSE 实时更新
+    const es = new EventSource('/api/stream');
+    es.onmessage = e => {
+      const row = JSON.parse(e.data);
+      renderRow(row);
+      if (tbody.children.length > 100) tbody.lastChild.remove();
+    };
+
+    function renderRow(r) {
+      const tr = document.createElement('tr');
+      if (r.blacklisted) tr.classList.add('blacklisted');
+      
+      const time = new Date(r.timestamp).toLocaleString('zh-CN');
+      const hasScreen = r.screenshot && r.screenshot.startsWith('image');
+      
+      tr.innerHTML = `
+        <td class="time">${time}</td>
+        <td>${r.student_id}</td>
+        <td>${hasScreen ? `<img src="${r.screenshot}" class="screenshot">` : '—'}</td>
+        <td class="url"><a href="${r.url}" target="_blank">${r.url}</a></td>
+        <td>${r.title || '—'}</td>
+        <td>${r.blacklisted ? '<span class="bad">⚠️ 黑名单</span>' : '✅ 正常'}</td>
+      `;
+      tbody.insertBefore(tr, tbody.firstChild);
+    }
+
+    function exportXLS() {
+      window.open('/api/export/xls', '_blank');
+    }
+  </script>
+</body>
+</html>

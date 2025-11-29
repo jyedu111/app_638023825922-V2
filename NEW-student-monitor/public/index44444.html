@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🏫 机房上网行为监控</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Microsoft YaHei', sans-serif;
+      background: #f5f9ff;
+      padding: 15px;
+      color: #333;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 15px;
+      padding: 10px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #1976d2;
+      margin-bottom: 5px;
+    }
+    .subtitle {
+      font-size: 0.9em;
+      color: #666;
+    }
+    .status-bar {
+      text-align: center;
+      margin: 10px 0;
+      font-size: 0.9em;
+      color: #555;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    }
+    th, td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    th {
+      background: #e3f2fd;
+      font-weight: bold;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr.blacklisted { background-color: #ffebee !important; }
+    .url-cell {
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .title-cell {
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .url-link {
+      color: #1976d2;
+      text-decoration: none;
+    }
+    .url-link:hover { text-decoration: underline; }
+    .time-cell { color: #666; font-size: 0.9em; }
+    .bad { color: #d32f2f; font-weight: bold; }
+    .good { color: #388e3c; font-weight: bold; }
+    .btn {
+      background: #1976d2;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 0 5px;
+    }
+    .btn:hover { opacity: 0.9; }
+    .btn-admin {
+      background: #9c27b0;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>机房上网行为实时监控</h1>
+    <p class="subtitle">服务端：http://10.1.82.202:3000｜刷新：7秒｜仅报送可查验域名</p>
+  </header>
+  <div class="status-bar" id="status">✅ 初始化完成</div>
+  <div style="text-align: center; margin: 10px 0;">
+    <button class="btn" onclick="location.reload()">🔄 手动刷新</button>
+    <button class="btn btn-admin" onclick="location.href='/admin.html'">⚙️ 黑名单管理</button>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>时间</th>
+        <th>学生ID</th>
+        <th>IP地址</th>
+        <th>网址</th>
+        <th>标题</th>
+        <th>状态</th>
+      </tr>
+    </thead>
+    <tbody id="record-table"></tbody>
+  </table>
+
+  <script>
+    const tbody = document.getElementById('record-table');
+    const statusEl = document.getElementById('status');
+
+    // 仅允许可查验的公开网址
+    function isValidPublicURL(url) {
+      if (!url) return false;
+      const u = url.toLowerCase().trim();
+      const invalid = ['about:', 'chrome:', 'edge:', 'file:', 'moz-extension:', 'javascript:', 'ftp:', 'blob:'];
+      if (invalid.some(p => u.startsWith(p))) return false;
+      if (u.includes('localhost') || u.includes('127.0.0.1')) return false;
+      return u.startsWith('http://') || u.startsWith('https://');
+    }
+
+    function truncate(str, len) {
+      return str && str.length > len ? str.substring(0, len - 3) + '...' : str || '—';
+    }
+
+    function loadLatest() {
+      const now = new Date().toLocaleTimeString();
+      statusEl.textContent = `🔄 刷新中...（${now}）`;
+
+      fetch('/api/latest?limit=50')
+        .then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        })
+        .then(data => {
+          tbody.innerHTML = '';
+          if (!Array.isArray(data) || data.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:20px;">暂无数据</td></tr>`;
+            statusEl.textContent = `✅ 无数据（${now}）`;
+            return;
+          }
+
+          data.forEach(record => {
+            const timeStr = new Date(record.timestamp).toLocaleString('zh-CN');
+            const tr = document.createElement('tr');
+            if (record.blacklisted) tr.className = 'blacklisted';
+
+            tr.innerHTML = `
+              <td class="time-cell">${timeStr}</td>
+              <td>${record.student_id || '未知'}</td>
+              <td>${record.student_ip || '—'}</td>
+              <td class="url-cell">
+                ${isValidPublicURL(record.url)
+                  ? `<a href="${record.url}" target="_blank" class="url-link" title="${record.url}">${truncate(record.url, 45)}</a>`
+                  : '<span>—</span>'}
+              </td>
+              <td class="title-cell" title="${record.title}">${truncate(record.title, 30)}</td>
+              <td>${record.blacklisted ? '<span class="bad">⚠️ 黑名单</span>' : '<span class="good">✅ 正常</span>'}</td>
+            `;
+            tbody.appendChild(tr);
+          });
+
+          statusEl.textContent = `✅ 共 ${data.length} 条记录（${now}）`;
+        })
+        .catch(err => {
+          console.error(err);
+          statusEl.innerHTML = `❌ ${err.message} <button onclick="loadLatest()" style="margin-left:8px;">重试</button>`;
+        });
+    }
+
+    window.addEventListener('load', () => {
+      loadLatest();
+      setInterval(loadLatest, 7000); // 7秒刷新
+    });
+  </script>
+</body>
+</html>

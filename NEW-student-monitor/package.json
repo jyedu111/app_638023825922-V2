@@ -1,0 +1,25 @@
+{
+  "dependencies": {
+    "body-parser": "^2.2.1",
+    "cors": "^2.8.5",
+    "exceljs": "^4.4.0",
+    "express": "^5.1.0",
+    "sqlite3": "^5.1.7"
+  },
+  "name": "student-monitor-system",
+  "version": "1.0.0",
+  "description": "局域网学生机上网行为监控系统",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js",
+    "init-db": "node init-db.js",
+    "test:js": "node tests/test_api.js",
+    "test:py": "python tests/test_report.py",
+    "test:all": "npm run test:js && npm run test:py"
+  },
+  "keywords": ["学生监控", "上网行为", "网络监控", "sqlite"],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
